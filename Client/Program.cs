@@ -32,7 +32,15 @@ var throttle = Flow.Create<FileItemDto>().Throttle(49, TimeSpan.FromSeconds(10),
 var download = Flow.Create<FileItemDto>().SelectAsyncUnordered(5,
     async file =>
     {
-        byte[] content = await storageApiClient.GetByteArrayAsync(file.FileId);
+        byte[]? content = null;
+        try
+        {
+            content = await storageApiClient.GetByteArrayAsync(file.FileId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"File {file.FileId} not found. Message {ex.Message}");
+        }
 
         return new FileItemWithContent(file, content);
     });
