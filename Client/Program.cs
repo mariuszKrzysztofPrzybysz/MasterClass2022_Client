@@ -19,7 +19,7 @@ var metadataApiClient = new MetadataApiClient(metadatasClient)
 #region StorageApiClient
 var storageClient = new HttpClient
 {
-    BaseAddress = new Uri("https://localhost:7294")
+    BaseAddress = new Uri("https://localhost:7128")
 };
 var storageApiClient = new StorageApiClient(storageClient);
 #endregion
