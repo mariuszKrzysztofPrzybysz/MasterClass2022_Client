@@ -76,6 +76,7 @@ using (var system = ActorSystem.Create("system"))
     using (var materializer = system.Materializer())
     {
         await source
+            .Take(15)
             .Via(throttle)
             .Via(download)
             .Via(partition)

@@ -45,6 +45,7 @@ namespace Client.ApiClients.Metadata
                     result = Newtonsoft.Json.JsonConvert.DeserializeObject<PagedResult<FileItemDto>>(jsonResult)!;
                     foreach (var item in result.Results)
                     {
+                        Console.WriteLine($"Sending {item.FileId}");
                         yield return item;
                     }
                     Token = result.NextToken!;
