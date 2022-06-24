@@ -4,6 +4,7 @@ using Akka.Streams.Dsl;
 using Client.ApiClients.Metadata;
 using Client.ApiClients.Metadata.Models;
 using Client.ApiClients.Storage;
+using Client.Models;
 
 #region MetadatasApiClient
 var metadatasClient = new HttpClient
@@ -25,9 +26,16 @@ var storageApiClient = new StorageApiClient(storageClient);
 #endregion
 
 var source = Source.From(metadataApiClient.BrowseAsync().ToBlockingEnumerable());
-var sink = Sink.ForEach<FileItemDto>(file => Console.WriteLine(file.FileId));
+var sink = Sink.ForEach<FileItemWithContent>(file => Console.WriteLine(file.File.FileId));
 #region Flows
 var throttle = Flow.Create<FileItemDto>().Throttle(49, TimeSpan.FromSeconds(10), 0, ThrottleMode.Shaping);
+var download = Flow.Create<FileItemDto>().SelectAsyncUnordered(5,
+    async file =>
+    {
+        byte[] content = await storageApiClient.GetByteArrayAsync(file.FileId);
+
+        return new FileItemWithContent(file, content);
+    });
 #endregion
 
 using (var system = ActorSystem.Create("system"))
@@ -36,6 +44,7 @@ using (var system = ActorSystem.Create("system"))
     {
         await source
             .Via(throttle)
+            .Via(download)
             .RunWith(sink, materializer);
     }
 }
