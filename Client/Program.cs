@@ -26,12 +26,17 @@ var storageApiClient = new StorageApiClient(storageClient);
 
 var source = Source.From(metadataApiClient.BrowseAsync().ToBlockingEnumerable());
 var sink = Sink.ForEach<FileItemDto>(file => Console.WriteLine(file.FileId));
+#region Flows
+var throttle = Flow.Create<FileItemDto>().Throttle(49, TimeSpan.FromSeconds(10), 0, ThrottleMode.Shaping);
+#endregion
 
 using (var system = ActorSystem.Create("system"))
 {
     using (var materializer = system.Materializer())
     {
-        await source.RunWith(sink, materializer);
+        await source
+            .Via(throttle)
+            .RunWith(sink, materializer);
     }
 }
 
