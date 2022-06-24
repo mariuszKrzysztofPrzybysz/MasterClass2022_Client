@@ -10,6 +10,6 @@
         }
 
         public async Task<byte[]> GetByteArrayAsync(string fileId, CancellationToken cancellationToken = default)
-            => await _client.GetByteArrayAsync(fileId, cancellationToken);
+            => await _client.GetByteArrayAsync($"/api/files/v1/{fileId}/content", cancellationToken);
     }
 }
