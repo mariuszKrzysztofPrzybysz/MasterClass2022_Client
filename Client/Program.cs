@@ -44,6 +44,18 @@ var download = Flow.Create<FileItemDto>().SelectAsyncUnordered(5,
 
         return new FileItemWithContent(file, content);
     });
+
+var partition = Flow.FromGraph(GraphDsl.Create(builder =>
+{
+    var input = builder.Add(new Partition<FileItemWithContent>(2, fileWithContent => fileWithContent.IsDownloaded ? 1 : 0));
+    var error = Sink.ForEach<FileItemWithContent>(fileWithoutContent => Console.WriteLine($"Could not download file {fileWithoutContent.File.FileId}"));
+    var output = builder.Add(new Merge<FileItemWithContent>(1));
+
+    builder.From(input.Out(0)).To(error);
+    builder.From(input.Out(1)).To(output.In(0));
+
+    return new FlowShape<FileItemWithContent, FileItemWithContent>(input.In, output.Out);
+}));
 #endregion
 
 using (var system = ActorSystem.Create("system"))
@@ -53,6 +65,7 @@ using (var system = ActorSystem.Create("system"))
         await source
             .Via(throttle)
             .Via(download)
+            .Via(partition)
             .RunWith(sink, materializer);
     }
 }
