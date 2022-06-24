@@ -5,6 +5,7 @@ using Client.ApiClients.Metadata;
 using Client.ApiClients.Metadata.Models;
 using Client.ApiClients.Storage;
 using Client.Models;
+using Status = Client.Models.Status;
 
 #region MetadatasApiClient
 var metadatasClient = new HttpClient
@@ -26,7 +27,7 @@ var storageApiClient = new StorageApiClient(storageClient);
 #endregion
 
 var source = Source.From(metadataApiClient.BrowseAsync().ToBlockingEnumerable());
-var sink = Sink.ForEach<FileItemWithContent>(file => Console.WriteLine(file.File.FileId));
+var sink = Sink.ForEach<FileWithStatus>(file => Console.WriteLine($"File id {file.File.FileId}, status {file.Status}"));
 #region Flows
 var throttle = Flow.Create<FileItemDto>().Throttle(49, TimeSpan.FromSeconds(10), 0, ThrottleMode.Shaping);
 var download = Flow.Create<FileItemDto>().SelectAsyncUnordered(5,
@@ -56,6 +57,18 @@ var partition = Flow.FromGraph(GraphDsl.Create(builder =>
 
     return new FlowShape<FileItemWithContent, FileItemWithContent>(input.In, output.Out);
 }));
+
+var saveMetadataAndContent = Flow.Create<FileItemWithContent>().SelectAsyncUnordered(25,
+    async fileWithContent =>
+    {
+        if (fileWithContent.File.Size % 7 < 3)
+        {
+            return new FileWithStatus(fileWithContent.File, Status.Failed);
+        }
+
+        await Task.Delay(Random.Shared.Next(1, 1024));
+        return new FileWithStatus(fileWithContent.File, Status.Ok);
+    });
 #endregion
 
 using (var system = ActorSystem.Create("system"))
@@ -66,6 +79,7 @@ using (var system = ActorSystem.Create("system"))
             .Via(throttle)
             .Via(download)
             .Via(partition)
+            .Via(saveMetadataAndContent)
             .RunWith(sink, materializer);
     }
 }
