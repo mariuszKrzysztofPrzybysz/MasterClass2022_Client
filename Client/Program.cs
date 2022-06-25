@@ -27,6 +27,25 @@ var storageApiClient = new StorageApiClient(storageClient);
 
 var source = Source.From(metadataApiClient.BrowseAsync().ToBlockingEnumerable());
 var sink = Sink.ForEach<FileItemWithContent>(file => Console.WriteLine(file.File.FileId));
+#region Exceptions
+Akka.Streams.Supervision.Decider strategy = exception =>
+{
+    switch (exception.InnerException)
+    {
+        case HttpRequestException ex:
+            if (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                Console.WriteLine("Not found");
+                return Akka.Streams.Supervision.Directive.Resume;
+            }
+
+            return Akka.Streams.Supervision.Directive.Stop;
+        default:
+            return Akka.Streams.Supervision.Directive.Stop;
+    }
+};
+#endregion
+
 #region Flows
 var throttle = Flow.Create<FileItemDto>().Throttle(49, TimeSpan.FromSeconds(10), 0, ThrottleMode.Shaping);
 var download = Flow.Create<FileItemDto>().SelectAsyncUnordered(5,
@@ -35,7 +54,8 @@ var download = Flow.Create<FileItemDto>().SelectAsyncUnordered(5,
         byte[] content = await storageApiClient.GetByteArrayAsync(file.FileId);
 
         return new FileItemWithContent(file, content);
-    });
+    })
+    .WithAttributes(ActorAttributes.CreateSupervisionStrategy(strategy));
 #endregion
 
 using (var system = ActorSystem.Create("system"))
